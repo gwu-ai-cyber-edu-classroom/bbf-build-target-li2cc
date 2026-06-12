@@ -6,32 +6,39 @@
 
 ## What this app is
 
-- **App:** <one line — e.g., "a paste-bin service" (menu #1)>
-- **Stack:** <Python + Flask / FastAPI, or Node + Express>
+- **App:** a notes / journal app with login (menu #2)
+- **Stack:** Python + Flask
 
 ## Start it
 
 ```bash
 # 1. Install dependencies
-<e.g. pip install -r requirements.txt   OR   npm install>
+pip install -r requirements.txt
 
-# 2. Run it
-<e.g. flask --app app run --port 8000   OR   uvicorn app:app --port 8000   OR   node server.js>
+# 2. Run it (creates/reseeds notes.db on startup, then serves on port 8000)
+python app.py
 ```
 
-- **Base URL:** <e.g. http://localhost:8000>
+- **Base URL:** http://localhost:8000
 - **Stop it:** Ctrl-C in the terminal running it.
 
 ## How to interact with it
 
 - **Main endpoints / pages:**
-  - `<METHOD> <path>` — <what it does> — <example>
-  - `<METHOD> <path>` — <what it does> — <example>
-- **Accounts / credentials for legitimate use** (if the app has login): <demo username/password, or "none">
+  - `GET /` — login form, or your own notes list once logged in — open http://localhost:8000/
+  - `POST /login` — log in with `username` + `password` form fields
+  - `GET /logout` — log out
+  - `GET /notes/<id>` — view a single note by numeric id — e.g. `GET /notes/1`
+  - `POST /notes` — create a note with `title` + `body` form fields (must be logged in)
+- **Accounts / credentials for legitimate use:**
+  - `alice` / `alice123`
+  - `bob` / `bob123`
 - **A benign request that should succeed:**
 
   ```bash
-  <e.g. curl http://localhost:8000/notes/1>
+  # Log in as alice (saving the session cookie), then list her notes:
+  curl -s -c cookies.txt -X POST -d "username=alice&password=alice123" http://localhost:8000/login
+  curl -s -b cookies.txt http://localhost:8000/
   ```
 
 ## For breakers

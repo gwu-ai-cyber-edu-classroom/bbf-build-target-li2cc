@@ -1,0 +1,8 @@
+# Generated at runtime by app.py (reseeded on every start)
+notes.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
