@@ -5,12 +5,16 @@ that the app stores but is expected never to leak through its interface.
 """
 
 import os
+import secrets
 import sqlite3
 
 from flask import Flask, g, redirect, request, session, url_for
+from markupsafe import escape
 
 app = Flask(__name__)
-app.secret_key = "dev-notes-secret"
+# Don't ship a hardcoded, guessable signing key (issue #9). Take it from the
+# environment if provided, otherwise generate a fresh random one per process.
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "notes.db")
 SECRET_FILE = os.path.join(os.path.dirname(__file__), "secret", "canary.txt")
@@ -87,7 +91,7 @@ def current_user():
     if uid is None:
         return None
     db = get_db()
-    return db.execute("SELECT * FROM users WHERE id = " + str(uid)).fetchone()
+    return db.execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
 
 
 @app.route("/")
@@ -105,13 +109,14 @@ def home():
         """
     db = get_db()
     rows = db.execute(
-        "SELECT * FROM notes WHERE owner_id = " + str(user["id"])
+        "SELECT * FROM notes WHERE owner_id = ?", (user["id"],)
     ).fetchall()
     items = "".join(
-        f'<li><a href="/notes/{r["id"]}">{r["title"]}</a></li>' for r in rows
+        f'<li><a href="/notes/{r["id"]}">{escape(r["title"])}</a></li>'
+        for r in rows
     )
     return f"""
-    <h1>Hi, {user["username"]}</h1>
+    <h1>Hi, {escape(user["username"])}</h1>
     <ul>{items}</ul>
     <form method="post" action="/notes">
       <p>Title: <input name="title"></p>
@@ -128,8 +133,8 @@ def login():
     password = request.form.get("password", "")
     db = get_db()
     row = db.execute(
-        "SELECT * FROM users WHERE username = '%s' AND password = '%s'"
-        % (username, password)
+        "SELECT * FROM users WHERE username = ? AND password = ?",
+        (username, password),
     ).fetchone()
     if row is None:
         return "Login failed. <a href='/'>back</a>"
@@ -145,15 +150,19 @@ def logout():
 
 @app.route("/notes/<int:note_id>")
 def view_note(note_id):
+    user = current_user()
+    if user is None:
+        return redirect(url_for("home"))
     db = get_db()
     note = db.execute(
-        "SELECT * FROM notes WHERE id = " + str(note_id)
+        "SELECT * FROM notes WHERE id = ?", (note_id,)
     ).fetchone()
-    if note is None:
+    # Only the owner may read a note (no IDOR / cross-user access).
+    if note is None or note["owner_id"] != user["id"]:
         return "No such note. <a href='/'>back</a>", 404
     return f"""
-    <h1>{note["title"]}</h1>
-    <p>{note["body"]}</p>
+    <h1>{escape(note["title"])}</h1>
+    <p>{escape(note["body"])}</p>
     <p><a href="/">back</a></p>
     """
 
@@ -167,8 +176,8 @@ def create_note():
     body = request.form.get("body", "")
     db = get_db()
     db.execute(
-        "INSERT INTO notes (owner_id, title, body) VALUES (%d, '%s', '%s')"
-        % (user["id"], title, body)
+        "INSERT INTO notes (owner_id, title, body) VALUES (?, ?, ?)",
+        (user["id"], title, body),
     )
     db.commit()
     return redirect(url_for("home"))
@@ -176,4 +185,4 @@ def create_note():
 
 if __name__ == "__main__":
     init_db()
-    app.run(port=8000, debug=True)
+    app.run(port=8000, debug=False)
